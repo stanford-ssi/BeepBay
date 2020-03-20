@@ -93,6 +93,25 @@ static const uint8_t A4  = PIN_A4;
 static const uint8_t A5  = PIN_A5;
 static const uint8_t A6  = PIN_A6 ;
 
+
+// S6C Serial Pins/Pads
+#define PIN_SERIAL_S6C_RX       (0ul)
+#define PIN_SERIAL_S6C_TX       (1ul)
+#define PAD_SERIAL_S6C_TX       (UART_TX_PAD_0)
+#define PAD_SERIAL_S6C_RX       (SERCOM_RX_PAD_2)
+
+// Strato Serial Pins/Pads
+#define PIN_SERIAL_STRATO_RX       (0ul)
+#define PIN_SERIAL_STRATO_TX       (1ul)
+#define PAD_SERIAL_STRATO_TX       (UART_TX_PAD_0)
+#define PAD_SERIAL_STRATO_RX       (SERCOM_RX_PAD_2)
+
+// GPS Serial Pins/Pads
+#define PIN_SERIAL_GPS_RX       (2ul)
+#define PIN_SERIAL_GPS_TX       (3ul)
+#define PAD_SERIAL_GPS_TX       (UART_TX_PAD_0)
+#define PAD_SERIAL_GPS_RX       (SERCOM_RX_PAD_2)
+
 /*
  * USB
  */

@@ -2,82 +2,101 @@
 
 #include "ff.h"
 #include "SSISD.hpp"
+#include "TinyGPS++.h"
 
-FATFS fs;
-FIL file_object;
 
-SSISD sdcard;
+void displayInfo();
+
+#define GPS_BAUD 9600
+
+// The TinyGPS++ object
+TinyGPSPlus gps;
+
+// The serial connection to the GPS device
+Uart SerialS6C( &sercom0, PIN_SERIAL_S6C_RX, PIN_SERIAL_S6C_TX, PAD_SERIAL_S6C_RX, PAD_SERIAL_S6C_TX ) ;
+Uart SerialGPS( &sercom5, PIN_SERIAL_GPS_RX, PIN_SERIAL_GPS_TX, PAD_SERIAL_GPS_RX, PAD_SERIAL_GPS_TX ) ;
+
+void SERCOM5_Handler(void) {
+  SerialGPS.IrqHandler();
+}
+
+void SERCOM0_Handler(void) {
+  SerialS6C.IrqHandler();
+}
 
 void setup() {
-  sdcard.init();
   Serial.begin(9600);
-  pinMode(1,OUTPUT);
-  pinMode(2,OUTPUT);
-  pinMode(3,OUTPUT);
-  pinMode(4,OUTPUT);
-
-  delay(3000);
-  digitalWrite(1,HIGH);
-  digitalWrite(2,HIGH);
-  digitalWrite(3,HIGH);
-  digitalWrite(4,HIGH);
-  delay(1000);
-  digitalWrite(1,LOW);
-  digitalWrite(2,LOW);
-  digitalWrite(3,LOW);
-  digitalWrite(4,LOW);
-  delay(1000);
-
-  FRESULT res;
-
-  Serial.println("Starting");
-
-  //Clear file system object
-  memset(&fs, 0, sizeof(FATFS));
-  Serial.println("A");
-
-  delay(1000);
-
-
-  Serial.println("B");
-  
-
-  res = f_mount(&fs, "", 1);
-  if (res != FR_OK)
-  {
-    Serial.println("Could not Mount!");
-  }
-  else
-  {
-    Serial.println("Mounted SD card");
-  }
-
-  Serial.println("C");
-  
-
+  SerialGPS.begin(GPS_BAUD);
+  SerialS6C.begin(9600);
 }
 
 void loop(){
 
-  f_open(&file_object, "test3.txt", FA_WRITE | FA_CREATE_ALWAYS);
+// print out data from GPS module to serial
+  if (SerialGPS.available() > 0) {
+    if (gps.encode(SerialGPS.read())) {
+      displayInfo();
+      delay(50);
+    }
+  }
 
-  
-  char string[] = "fjdkasljfdklajflkjdklasjflkdklafkldjaklfkldklaflkadsfldjklajfldsjklfjkladsklajffjdkasljfdklajflkjdklasjflkfjdkasljfdklajflkjdklasjflkdklafkldjaklfkldklaflkadsfldjklajfldsjklfjkladsklajffjdkasljfdklajflkjdklasjflkfjdkasljfdklajflkjdklasjflkdklafkldjaklfkldklaflkadsfldjklajfldsjklfjkladsklajffjdkasljfdklajflkjdklasjflkfjdkasljfdklajflkjdklasjflkdklafkldjaklfkldklaflkadsfldjklajfldsjklfjkladsklajffjdkasljfdklajflkjdklasjflkfjdkasljfdklajflkjdklasjflkdklafkldjaklfkldklaflkadsfldjklajfldsjklfjkladsklajffjdkasljfdklajflkjdklasjflkdklafkldjaklfkldklaflkadsfldjklajfldsjklfjkladsklajffjdkasljfdklajflkjdklasjflkdklafkldjaklfkldklaflkadsfldjklajfldsjklfjkladsklajffjdkasljfdklajflkjdklasjflkdklafkldjaklfkldklaflkadsfldjklajfldsjklfjkladsklajffjdkasljfdklajflkjdklasjflkdklafkldjaklfkldklaflkadsfldjklajfldsjklfjkladsklajffjdkasljfdklajflkjdklasjflkdklafkldjaklfkldklaflkadsfldjklajfldsjklfjkladsklajffjdkasljfdklajflkjdklasjflkdklafkldjaklfkldklaflkadsfldjklajfldsjklfjkladsklajfdjfdlksajflkdjskljaflkdjslkafjkl;dsajkl;fjdl;ksajflk;dsj;lkafjd;klsjakl;fjkldsjjfhkjhdfjkghfdkjghljkfdshkgljfdjklshgjkfdshjklgfdlkjshgkfjdklsghljkfsdhgkjfhdlkjsghd";
-  
+// print out data from S6C to serial
+  if (SerialS6C.available() > 0) {
+    Serial.write(SerialS6C.read());
+  }
 
-  f_puts(string, &file_object);
-  f_sync(&file_object);
-  f_close(&file_object);
+}
 
-  Serial.println("Lol");
-  digitalWrite(1,HIGH);
-  digitalWrite(2,HIGH);
-  digitalWrite(3,HIGH);
-  digitalWrite(4,HIGH);
-  delay(500);
-  digitalWrite(1,LOW);
-  digitalWrite(2,LOW);
-  digitalWrite(3,LOW);
-  digitalWrite(4,LOW);
-  delay(500);
+void displayInfo() {
+  /* Print out GPS data to the serial monitor.
+   */
+
+  // Format -- Location: lat,lng Date/Time: mo/day/yr hr:min:sec.centisec \n
+  Serial.print(F("Location: ")); 
+  if (gps.location.isValid())
+  {
+    Serial.print(gps.location.lat(), 6);
+    Serial.print(F(","));
+    Serial.print(gps.location.lng(), 6);
+  }
+  else
+  {
+    Serial.print(F("INVALID"));
+  }
+
+  Serial.print(F(" Date/Time: "));
+  if (gps.date.isValid())
+  {
+    Serial.print(gps.date.month());
+    Serial.print(F("/"));
+    Serial.print(gps.date.day());
+    Serial.print(F("/"));
+    Serial.print(gps.date.year());
+  }
+  else
+  {
+    Serial.print(F("INVALID"));
+  }
+
+  Serial.print(F(" "));
+  if (gps.time.isValid())
+  {
+    if (gps.time.hour() < 10) Serial.print(F("0"));
+    Serial.print(gps.time.hour());
+    Serial.print(F(":"));
+    if (gps.time.minute() < 10) Serial.print(F("0"));
+    Serial.print(gps.time.minute());
+    Serial.print(F(":"));
+    if (gps.time.second() < 10) Serial.print(F("0"));
+    Serial.print(gps.time.second());
+    Serial.print(F("."));
+    if (gps.time.centisecond() < 10) Serial.print(F("0"));
+    Serial.print(gps.time.centisecond());
+  }
+  else
+  {
+    Serial.print(F("INVALID"));
+  }
+
+  Serial.println();
 }
