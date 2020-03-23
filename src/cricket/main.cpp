@@ -1,20 +1,6 @@
-#include <Arduino.h>
-
-#include "ff.h"
-#include "SSISD.hpp"
-#include "TinyGPS++.h"
-
-
-void displayInfo();
-
-#define GPS_BAUD 9600
-
-// The TinyGPS++ object
-TinyGPSPlus gps;
-
-// The serial connection to the GPS device
-Uart SerialS6C( &sercom0, PIN_SERIAL_S6C_RX, PIN_SERIAL_S6C_TX, PAD_SERIAL_S6C_RX, PAD_SERIAL_S6C_TX ) ;
-Uart SerialGPS( &sercom5, PIN_SERIAL_GPS_RX, PIN_SERIAL_GPS_TX, PAD_SERIAL_GPS_RX, PAD_SERIAL_GPS_TX ) ;
+#include "main.h"
+#undef min
+#undef max
 
 void SERCOM5_Handler(void) {
   SerialGPS.IrqHandler();
@@ -25,26 +11,55 @@ void SERCOM0_Handler(void) {
 }
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   SerialGPS.begin(GPS_BAUD);
-  SerialS6C.begin(9600);
+  SerialS6C.begin(S6C_BAUD);
+  
+  delay(2000); // wait for serial monitor to be opened
+
 }
 
-void loop(){
+/**
+ * Report GPS coordinates every GPS_DATA_INTERVAL.
+ * If GPS data stops sending, it is due to power loss
+ * rather than not acquiring new GPS data.
+ **/
+void loop() {
 
-// print out data from GPS module to serial
+  // If new GPS data  is acquired, read it and encode it.
   if (SerialGPS.available() > 0) {
-    if (gps.encode(SerialGPS.read())) {
-      displayInfo();
-      delay(50);
+    gps.encode(SerialGPS.read());
+    Serial.println("NEW GPS DATA POINT ACQUIRED");
+    if (!firstAcquired) {
+      firstAcquired = true;
     }
   }
 
-// print out data from S6C to serial
-  if (SerialS6C.available() > 0) {
-    Serial.write(SerialS6C.read());
-  }
 
+  // Report GPS coordinates every GPS_DATA_INTERVAL
+  // if at least one valid location has been acquired.
+  bool time_to_send = (millis() - lastSend) > GPS_DATA_INTERVAL;
+  if (time_to_send && firstAcquired) {
+      sendCoords();
+      displayInfo();
+      lastSend = millis();
+    }
+
+}
+
+void sendCoords() {
+  char message_id = 0x3; // 0b11
+  const int msg_len = sizeof(int32_t) * 3 + sizeof(uint8_t);
+  uint8_t msg[msg_len + 2];
+  msg[0] = MESSAGE_SEND;
+  msg[1] = msg_len;
+  msg[2] = message_id;
+
+  ((int32_t *)(msg + 3))[0] = long(gps.location.lat()*1000000);
+  ((int32_t *)(msg + 3))[1] = long(gps.location.lng()*1000000);
+  ((int32_t *)(msg + 3))[2] = long(gps.altitude.feet());
+
+  min_send_frame(&min_ctx_s6c, 0, msg, msg[1] + 3);
 }
 
 void displayInfo() {
@@ -100,3 +115,26 @@ void displayInfo() {
 
   Serial.println();
 }
+
+uint16_t min_tx_space(uint8_t port)
+{
+  uint16_t n = 1;
+  if (port == 0)
+    n = SerialS6C.availableForWrite();
+  return n;
+}
+
+void min_tx_byte(uint8_t port, uint8_t byte)
+{
+  if (port == 0)
+    SerialS6C.write(&byte, 1U);
+}
+
+uint32_t min_time_ms()
+{
+  return millis();
+}
+
+void min_tx_start(uint8_t port) {}
+
+void min_tx_finished(uint8_t port) { SerialS6C.flush(); }
